@@ -23,6 +23,7 @@ import {
   Dna
 } from 'lucide-react';
 import './App.css';
+import ResearchDashboard from './components/ResearchDashboard';
 
 interface Stats {
   users: number;
@@ -209,7 +210,8 @@ export default function App() {
             { id: 'workspaces', label: 'Workspaces', icon: Network },
             { id: 'm23m', label: 'M2-3M Hub', icon: Brain },
             { id: 'telemedicine', label: 'Telemedicine', icon: Stethoscope },
-            { id: 'research', label: 'Research', icon: Microscope }
+            { id: 'research', label: 'Research', icon: Microscope },
+            { id: 'telstp-research', label: 'TELsTP Research', icon: Microscope }
           ].map(tab => {
             const Icon = tab.icon;
             return (
@@ -396,6 +398,10 @@ export default function App() {
               })}
             </div>
           </div>
+        )}
+
+        {activeTab === 'telstp-research' && (
+          <ResearchDashboard />
         )}
       </main>
 
