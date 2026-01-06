@@ -25,6 +25,14 @@ import {
 import './App.css';
 import ResearchDashboard from './components/ResearchDashboard';
 
+// Platform Configuration
+const PLATFORM_CONFIG = {
+  ceoName: 'Dr. Mohamed Hassan Amin',
+  platformName: 'TELsTP OmniCognitor',
+  platformSubtitle: 'Unified AI Platform - MMAC Edition',
+  organization: 'TAWASOL Life Science Park',
+};
+
 interface Stats {
   users: number;
   platforms: number;
@@ -185,8 +193,9 @@ export default function App() {
             <div className="flex items-center space-x-2">
               <Globe className="w-8 h-8 text-blue-500" />
               <div>
-                <h1 className="text-xl font-bold text-white">TELsTP OmniCognitor</h1>
-                <p className="text-sm text-gray-400">Unified AI Platform - MMAC Edition</p>
+                <h1 className="text-xl font-bold text-white">{PLATFORM_CONFIG.platformName}</h1>
+                <p className="text-sm text-gray-400">{PLATFORM_CONFIG.platformSubtitle}</p>
+                <p className="text-xs text-gray-500 mt-1">Led by {PLATFORM_CONFIG.ceoName}</p>
               </div>
             </div>
           </div>
