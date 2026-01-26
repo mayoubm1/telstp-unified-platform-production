@@ -65,6 +65,42 @@ export default function App() {
     messages: 0,
     conversations: 0
   });
+  const createConversation = async (workspaceId: string, userId: string) => {
+  try {
+    // First create the conversation
+    const { data: conversation, error: convError } = await supabase
+      .from('conversations')
+      .insert({
+        title: 'New conversation from app',
+        workspace_id: workspaceId,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (convError) throw convError;
+
+    // Then create the first message
+    const { data: message, error: msgError } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversation.id,
+        user_id: userId,
+        workspace_id: workspaceId,
+        role: 'user',
+        content: 'Hello, this is the first message.',
+        created_at: new Date().toISOString()
+      });
+
+    if (msgError) throw msgError;
+
+    console.log('Conversation created:', conversation);
+    return conversation;
+  } catch (err) {
+    console.error('Error creating conversation:', err);
+    return null;
+  }
+};
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [error, setError] = useState<string>('');
