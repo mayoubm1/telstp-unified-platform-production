@@ -13,3 +13,10 @@ The browser-control extension then timed out while polling the connected persona
 - `CI=true npm test -- --watchAll=false`: passed, 1/1 tests.
 - `npm run build`: compiled successfully.
 - `npm ci` initially failed because `package-lock.json` was missing `yaml@2.9.0`; `npm install` synchronized the lock file and installed dependencies.
+
+## Production deployment verification
+
+- The verified release was committed on `branch-1` as `94e87bf` (`Replace dashboard placeholders with live TELsTP data`) and pushed to the authoritative GitHub remote.
+- The public Vercel domain returned `HTTP/2 200` and served the newly generated bundle fingerprint `static/js/main.6f6e9b43.js`, matching the local successful build.
+- The production document metadata now reports the TELsTP OmniCognitor title, the live transparent-operations description, and the dark TELsTP theme color.
+- The connected-browser extension again timed out before it could capture the fully rendered client-side query state. This does not alter the independent REST result: `global_hubs` returns 21 live records, `messages` and `conversations` return 0, and `workspaces` is unavailable because of the pre-existing RLS recursion error.
