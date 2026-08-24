@@ -1,464 +1,402 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from './lib/supabase';
-import { 
-  Globe, 
-  Users, 
-  MessageSquare, 
-  Zap, 
-  Activity, 
-  Brain, 
-  Stethoscope, 
+import {
+  Activity,
+  AlertTriangle,
+  ArrowUpRight,
+  Building2,
+  CheckCircle2,
   Database,
-  Shield,
+  Globe2,
+  LayoutDashboard,
+  MessageCircle,
   Network,
-  BarChart3,
-  Settings,
-  Bell,
-  Search,
-  Plus,
-  ChevronRight,
-  TrendingUp,
-  Heart,
-  Microscope,
-  Dna
+  RefreshCw,
+  ShieldCheck,
+  Users
 } from 'lucide-react';
 import './App.css';
-import ResearchDashboard from './components/ResearchDashboard';
 
-// Platform Configuration
 const PLATFORM_CONFIG = {
   ceoName: 'Dr. Mohamed Hassan Amin',
   platformName: 'TELsTP OmniCognitor',
-  platformSubtitle: 'Unified AI Platform - MMAC Edition',
-  organization: 'TAWASOL Life Science Park',
+  platformSubtitle: 'Unified AI Platform · Live Operations View',
+  organization: 'TAWASOL Egypt Life Science Technology Park'
 };
 
-interface Stats {
-  users: number;
-  platforms: number;
-  workspaces: number;
-  messages: number;
-  conversations: number;
+type TabId = 'overview' | 'hubs' | 'integrity';
+
+interface GlobalHub {
+  id: string | number;
+  name: string | null;
+  country: string | null;
+  website: string | null;
+  contact_email: string | null;
 }
 
-interface Platform {
-  id: string;
-  name: string;
-  type: string;
-  status: 'enabled' | 'disabled';
-  description: string;
+interface LiveStats {
+  globalHubs: number | null;
+  messages: number | null;
+  conversations: number | null;
+  workspaces: number | null;
 }
 
-interface Workspace {
-  id: string;
-  name: string;
-  description: string;
-  visibility: 'public' | 'private';
+interface DataIssue {
+  area: string;
+  message: string;
 }
+
+const NAVIGATION: Array<{ id: TabId; label: string; icon: React.ElementType }> = [
+  { id: 'overview', label: 'Live Overview', icon: LayoutDashboard },
+  { id: 'hubs', label: 'Global Hubs', icon: Globe2 },
+  { id: 'integrity', label: 'Data Integrity', icon: ShieldCheck }
+];
+
+const countText = (value: number | null) => (value === null ? 'Unavailable' : value.toLocaleString());
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<Stats>({
-    users: 0,
-    platforms: 0,
-    workspaces: 0,
-    messages: 0,
-    conversations: 0
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [stats, setStats] = useState<LiveStats>({
+    globalHubs: null,
+    messages: null,
+    conversations: null,
+    workspaces: null
   });
-  const createConversation = async (workspaceId: string, userId: string) => {
-  try {
-    // First create the conversation
-    const { data: conversation, error: convError } = await supabase
-      .from('conversations')
-      .insert({
-        title: 'New conversation from app',
-        workspace_id: workspaceId,
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+  const [hubs, setHubs] = useState<GlobalHub[]>([]);
+  const [dataIssues, setDataIssues] = useState<DataIssue[]>([]);
+  const [query, setQuery] = useState('');
 
-    if (convError) throw convError;
+  const fetchLiveData = async () => {
+    setRefreshing(true);
+    setDataIssues([]);
 
-    // Then create the first message
-    const { data: message, error: msgError } = await supabase
-      .from('messages')
-      .insert({
-        conversation_id: conversation.id,
-        user_id: userId,
-        workspace_id: workspaceId,
-        role: 'user',
-        content: 'Hello, this is the first message.',
-        created_at: new Date().toISOString()
-      });
+    const [hubsResult, messagesResult, conversationsResult, workspacesResult] = await Promise.all([
+      supabase
+        .from('global_hubs')
+        .select('id,name,country,website,contact_email')
+        .order('name', { ascending: true }),
+      supabase.from('messages').select('id', { count: 'exact', head: true }),
+      supabase.from('conversations').select('id', { count: 'exact', head: true }),
+      supabase.from('workspaces').select('id', { count: 'exact', head: true })
+    ]);
 
-    if (msgError) throw msgError;
+    const issues: DataIssue[] = [];
 
-    console.log('Conversation created:', conversation);
-    return conversation;
-  } catch (err) {
-    console.error('Error creating conversation:', err);
-    return null;
-  }
-};
-  const [platforms, setPlatforms] = useState<Platform[]>([]);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [error, setError] = useState<string>('');
-  const [activeTab, setActiveTab] = useState('overview');
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      // Fetch real data from Supabase
-      const [usersResult, platformsResult, workspacesResult] = await Promise.all([
-        supabase.from('users').select('*', { count: 'exact', head: true }),
-        supabase.from('platforms').select('*'),
-        supabase.from('workspaces').select('*')
-      ]);
-
-      // Update stats with real data
-      setStats({
-        users: usersResult.count || 150,
-        platforms: platformsResult.data?.length || 5,
-        workspaces: workspacesResult.data?.length || 25,
-        messages: 1200, // Can be calculated from messages table
-        conversations: 300 // Can be calculated from conversations table
-      });
-
-      setPlatforms(platformsResult.data || [
-        { id: '1', name: 'Mistral AI', type: 'LLM', status: 'enabled', description: 'Advanced language model' },
-        { id: '2', name: 'Supabase', type: 'Database/Auth', status: 'enabled', description: 'Backend as a service' },
-        { id: '3', name: 'Google Sheets', type: 'Integration', status: 'enabled', description: 'Data integration' },
-        { id: '4', name: 'M2-3M', type: 'Research Hub', status: 'disabled', description: 'AI research assistant' },
-        { id: '5', name: 'Telemedicine', type: 'Healthcare Hub', status: 'disabled', description: 'Medical services platform' }
-      ]);
-
-      setWorkspaces(workspacesResult.data || [
-        { id: '1', name: 'Global Strategy', description: 'High-level planning', visibility: 'public' },
-        { id: '2', name: 'AI Development', description: 'Backend and LLM integration', visibility: 'private' },
-        { id: '3', name: 'Frontend UI/UX', description: 'OmniCognitor interface', visibility: 'public' }
-      ]);
-
-    } catch (err: any) {
-      console.error('Error fetching data:', err);
-      setError('Failed to load data from database');
-    } finally {
-      setLoading(false);
+    if (hubsResult.error) {
+      issues.push({ area: 'Global hubs', message: hubsResult.error.message });
+      setHubs([]);
+    } else {
+      setHubs((hubsResult.data ?? []) as GlobalHub[]);
     }
+
+    if (messagesResult.error) {
+      issues.push({ area: 'Messages', message: messagesResult.error.message });
+    }
+
+    if (conversationsResult.error) {
+      issues.push({ area: 'Conversations', message: conversationsResult.error.message });
+    }
+
+    if (workspacesResult.error) {
+      issues.push({ area: 'Workspaces', message: workspacesResult.error.message });
+    }
+
+    setStats({
+      globalHubs: hubsResult.error ? null : hubsResult.data?.length ?? 0,
+      messages: messagesResult.error ? null : messagesResult.count ?? 0,
+      conversations: conversationsResult.error ? null : conversationsResult.count ?? 0,
+      workspaces: workspacesResult.error ? null : workspacesResult.count ?? 0
+    });
+    setDataIssues(issues);
+    setLastUpdated(new Date());
+    setLoading(false);
+    setRefreshing(false);
   };
 
-  const StatCard = ({ icon: Icon, label, value, color }: { 
-    icon: any, 
-    label: string, 
-    value: number | string, 
-    color: string 
+  useEffect(() => {
+    fetchLiveData();
+  }, []);
+
+  const filteredHubs = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return hubs;
+
+    return hubs.filter((hub) => {
+      return [hub.name, hub.country, hub.website]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+    });
+  }, [hubs, query]);
+
+  const liveConnectionHealthy = dataIssues.length === 0;
+
+  const MetricCard = ({
+    label,
+    value,
+    icon: Icon,
+    accent,
+    description
+  }: {
+    label: string;
+    value: number | null;
+    icon: React.ElementType;
+    accent: string;
+    description: string;
   }) => (
-    <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-blue-500 transition-all duration-300">
-      <div className="flex items-center justify-between">
+    <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5 shadow-2xl shadow-slate-950/20 transition hover:-translate-y-0.5 hover:border-slate-700">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-gray-400 text-sm font-medium">{label}</p>
-          <p className="text-3xl font-bold text-white mt-2">{value}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{countText(value)}</p>
+          <p className="mt-2 text-sm leading-5 text-slate-400">{description}</p>
         </div>
-        <div className={`p-3 rounded-lg ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
+        <div className={`rounded-xl border p-3 ${accent}`}>
+          <Icon className="h-5 w-5" aria-hidden="true" />
         </div>
       </div>
-    </div>
+    </article>
   );
 
-  const PlatformCard = ({ platform }: { platform: Platform }) => (
-    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-blue-500 transition-all duration-300">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-white font-semibold">{platform.name}</h3>
-        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-          platform.status === 'enabled' 
-            ? 'bg-green-900 text-green-300' 
-            : 'bg-red-900 text-red-300'
-        }`}>
-          {platform.status === 'enabled' ? '● Enabled' : '● Disabled'}
+  const IntegrityNotice = () => {
+    if (liveConnectionHealthy) {
+      return (
+        <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-emerald-100">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" aria-hidden="true" />
+          <div>
+            <p className="font-medium">All queried data sources responded successfully.</p>
+            <p className="mt-1 text-sm text-emerald-200/80">Every value in this view is read directly from the configured Supabase project.</p>
+          </div>
         </div>
-      </div>
-      <p className="text-gray-400 text-sm mb-2">{platform.type}</p>
-      <p className="text-gray-300 text-sm">{platform.description}</p>
-    </div>
-  );
+      );
+    }
 
-  const WorkspaceCard = ({ workspace }: { workspace: Workspace }) => (
-    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-blue-500 transition-all duration-300 cursor-pointer">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-white font-semibold">{workspace.name}</h3>
-        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-          workspace.visibility === 'public' 
-            ? 'bg-blue-900 text-blue-300' 
-            : 'bg-purple-900 text-purple-300'
-        }`}>
-          {workspace.visibility}
+    return (
+      <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-amber-100">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" aria-hidden="true" />
+          <div>
+            <p className="font-medium">Some live data sources require remediation.</p>
+            <p className="mt-1 text-sm text-amber-100/80">Unavailable values are intentionally shown as unavailable. No substitute or simulated values are displayed.</p>
+          </div>
+        </div>
+        <div className="mt-4 divide-y divide-amber-400/10 rounded-lg border border-amber-400/10 bg-slate-950/30">
+          {dataIssues.map((issue) => (
+            <div key={issue.area} className="px-3 py-2.5 text-sm">
+              <span className="font-semibold text-amber-200">{issue.area}:</span>{' '}
+              <span className="text-amber-100/80">{issue.message}</span>
+            </div>
+          ))}
         </div>
       </div>
-      <p className="text-gray-300 text-sm">{workspace.description}</p>
-      <div className="flex items-center justify-between mt-4">
-        <span className="text-gray-400 text-xs">Click to enter</span>
-        <ChevronRight className="w-4 h-4 text-gray-400" />
-      </div>
-    </div>
-  );
+    );
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading TELsTP Platform...</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
+        <div className="max-w-md text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-cyan-400/20 border-t-cyan-300" />
+          <p className="mt-5 text-lg font-medium">Connecting to TELsTP live data</p>
+          <p className="mt-2 text-sm text-slate-400">No dashboard values are shown until the configured data sources respond.</p>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Globe className="w-8 h-8 text-blue-500" />
-              <div>
-                <h1 className="text-xl font-bold text-white">{PLATFORM_CONFIG.platformName}</h1>
-                <p className="text-sm text-gray-400">{PLATFORM_CONFIG.platformSubtitle}</p>
-                <p className="text-xs text-gray-500 mt-1">Led by {PLATFORM_CONFIG.ceoName}</p>
-              </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-cyan-300/30">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-52 left-1/3 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" />
+        <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-indigo-500/10 blur-3xl" />
+      </div>
+
+      <header className="relative border-b border-slate-800/90 bg-slate-950/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="flex items-start gap-4">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-300 shadow-lg shadow-cyan-500/10">
+              <Network className="h-6 w-6" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">{PLATFORM_CONFIG.organization}</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">{PLATFORM_CONFIG.platformName}</h1>
+              <p className="mt-1 text-sm text-slate-400">{PLATFORM_CONFIG.platformSubtitle} · Led by {PLATFORM_CONFIG.ceoName}</p>
             </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 bg-green-900 px-3 py-1 rounded-full">
-              <Activity className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 text-sm font-medium">Live</span>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${liveConnectionHealthy ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300' : 'border-amber-400/20 bg-amber-400/10 text-amber-200'}`}>
+              <Activity className="h-4 w-4" aria-hidden="true" />
+              <span>{liveConnectionHealthy ? 'Live data connected' : 'Live data attention required'}</span>
             </div>
-            <Bell className="w-5 h-5 text-gray-400 hover:text-white cursor-pointer" />
-            <Settings className="w-5 h-5 text-gray-400 hover:text-white cursor-pointer" />
+            <button
+              type="button"
+              onClick={fetchLiveData}
+              disabled={refreshing}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-200 transition hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-wait disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+              {refreshing ? 'Refreshing' : 'Refresh live data'}
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Navigation */}
-      <nav className="bg-gray-800 border-b border-gray-700 px-6">
-        <div className="flex space-x-8">
-          {[
-            { id: 'overview', label: 'Overview', icon: BarChart3 },
-            { id: 'platforms', label: 'Platforms', icon: Zap },
-            { id: 'workspaces', label: 'Workspaces', icon: Network },
-            { id: 'm23m', label: 'M2-3M Hub', icon: Brain },
-            { id: 'telemedicine', label: 'Telemedicine', icon: Stethoscope },
-            { id: 'research', label: 'Research', icon: Microscope },
-            { id: 'telstp-research', label: 'TELsTP Research', icon: Microscope }
-          ].map(tab => {
+      <div className="relative mx-auto max-w-7xl px-5 py-6 lg:px-8">
+        <nav className="mb-7 flex w-full gap-1 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/60 p-1.5" aria-label="Platform navigation">
+          {NAVIGATION.map((tab) => {
             const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 py-4 px-2 border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-400'
-                    : 'border-transparent text-gray-400 hover:text-white'
-                }`}
+                className={`inline-flex min-w-max items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition ${isActive ? 'bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-400/10' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
               >
-                <Icon className="w-4 h-4" />
-                <span className="font-medium">{tab.label}</span>
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                {tab.label}
               </button>
             );
           })}
-        </div>
-      </nav>
-
-      {/* Main Content */}
-      <main className="p-6">
-        {error && (
-          <div className="bg-red-900 border border-red-700 text-red-300 px-4 py-3 rounded-lg mb-6">
-            <p className="font-medium">Error: {error}</p>
-          </div>
-        )}
+        </nav>
 
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-              <StatCard icon={Users} label="Users" value={stats.users} color="bg-blue-600" />
-              <StatCard icon={Zap} label="Platforms" value={stats.platforms} color="bg-purple-600" />
-              <StatCard icon={Network} label="Workspaces" value={stats.workspaces} color="bg-green-600" />
-              <StatCard icon={MessageSquare} label="Messages" value={stats.messages} color="bg-cyan-600" />
-              <StatCard icon={Activity} label="Conversations" value={stats.conversations} color="bg-orange-600" />
-            </div>
-
-            {/* Connected AI Platforms */}
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <Zap className="w-5 h-5 text-purple-400" />
-                <h2 className="text-xl font-bold text-white">Connected AI Platforms</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {platforms.map(platform => (
-                  <PlatformCard key={platform.id} platform={platform} />
-                ))}
-              </div>
-            </div>
-
-            {/* Active Workspaces */}
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <Globe className="w-5 h-5 text-blue-400" />
-                <h2 className="text-xl font-bold text-white">Active Workspaces</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {workspaces.map(workspace => (
-                  <WorkspaceCard key={workspace.id} workspace={workspace} />
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'platforms' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-white">AI Platforms</h2>
-              <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg flex items-center space-x-2">
-                <Plus className="w-4 h-4" />
-                <span>Add Platform</span>
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {platforms.map(platform => (
-                <PlatformCard key={platform.id} platform={platform} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'workspaces' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-white">Workspaces</h2>
-              <button className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg flex items-center space-x-2">
-                <Plus className="w-4 h-4" />
-                <span>Create Workspace</span>
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {workspaces.map(workspace => (
-                <WorkspaceCard key={workspace.id} workspace={workspace} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'm23m' && (
-          <div className="space-y-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <Brain className="w-8 h-8 text-purple-400" />
+          <section className="space-y-7" aria-labelledby="overview-heading">
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
               <div>
-                <h2 className="text-2xl font-bold text-white">M2-3M Research Hub</h2>
-                <p className="text-gray-400">AI Research Assistant System</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Operational snapshot</p>
+                <h2 id="overview-heading" className="mt-2 text-3xl font-semibold tracking-tight text-white">Verified live records</h2>
+                <p className="mt-2 max-w-2xl text-slate-400">This dashboard reports only values returned by the configured TELsTP Supabase project. A zero is a real zero; an unavailable value remains unavailable.</p>
               </div>
+              <p className="text-sm text-slate-500">Last client refresh: {lastUpdated ? lastUpdated.toLocaleString() : 'Not yet refreshed'}</p>
             </div>
-            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-              <div className="text-center py-12">
-                <Brain className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-white mb-2">M2-3M Hub Integration</h3>
-                <p className="text-gray-400 mb-6">Advanced AI research capabilities coming soon</p>
-                <button className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-medium">
-                  Enable M2-3M Hub
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {activeTab === 'telemedicine' && (
-          <div className="space-y-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <Stethoscope className="w-8 h-8 text-red-400" />
-              <div>
-                <h2 className="text-2xl font-bold text-white">Telemedicine Hub</h2>
-                <p className="text-gray-400">Healthcare & Wellness Platform</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                <div className="flex items-center space-x-3 mb-4">
-                  <Heart className="w-6 h-6 text-red-400" />
-                  <h3 className="text-lg font-semibold text-white">MY-WELLNESSAI</h3>
-                </div>
-                <p className="text-gray-400 mb-4">AI-powered patient wellness platform</p>
-                <button className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg">
-                  Launch Wellness Hub
-                </button>
-              </div>
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                <div className="flex items-center space-x-3 mb-4">
-                  <Users className="w-6 h-6 text-blue-400" />
-                  <h3 className="text-lg font-semibold text-white">MY-ASSISTAI</h3>
-                </div>
-                <p className="text-gray-400 mb-4">AI assistant for healthcare professionals</p>
-                <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg">
-                  Launch Assistant Hub
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+            <IntegrityNotice />
 
-        {activeTab === 'research' && (
-          <div className="space-y-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <Microscope className="w-8 h-8 text-green-400" />
-              <div>
-                <h2 className="text-2xl font-bold text-white">Research Portal</h2>
-                <p className="text-gray-400">Scientific Research & Innovation</p>
-              </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Global hubs" value={stats.globalHubs} icon={Globe2} accent="border-cyan-400/20 bg-cyan-400/10 text-cyan-300" description="Live records in the global hub directory." />
+              <MetricCard label="Messages" value={stats.messages} icon={MessageCircle} accent="border-violet-400/20 bg-violet-400/10 text-violet-300" description="Live records in the messages table." />
+              <MetricCard label="Conversations" value={stats.conversations} icon={Users} accent="border-blue-400/20 bg-blue-400/10 text-blue-300" description="Live records in the conversations table." />
+              <MetricCard label="Workspaces" value={stats.workspaces} icon={Building2} accent="border-amber-400/20 bg-amber-400/10 text-amber-300" description="Live count where policy access permits it." />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                { name: 'Genomics Research', icon: Dna, color: 'text-green-400' },
-                { name: 'Biomedical Engineering', icon: Heart, color: 'text-red-400' },
-                { name: 'Data Science & AI', icon: Brain, color: 'text-purple-400' }
-              ].map(area => {
-                const Icon = area.icon;
-                return (
-                  <div key={area.name} className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-blue-500 transition-all duration-300">
-                    <Icon className={`w-8 h-8 ${area.color} mb-4`} />
-                    <h3 className="text-lg font-semibold text-white mb-2">{area.name}</h3>
-                    <p className="text-gray-400 text-sm mb-4">Advanced research capabilities</p>
-                    <button className="text-blue-400 hover:text-blue-300 text-sm font-medium">
-                      Explore Research →
-                    </button>
+
+            <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
+              <article className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+                <div className="flex items-start justify-between gap-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Global network directory</p>
+                    <h3 className="mt-2 text-xl font-semibold text-white">Live hub coverage</h3>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">Browse the real global-hub records currently available to the application. This directory contains no locally defined hub list.</p>
                   </div>
-                );
-              })}
+                  <button type="button" onClick={() => setActiveTab('hubs')} className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-cyan-300 transition hover:text-cyan-200">
+                    Open directory <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                  {hubs.slice(0, 6).map((hub) => (
+                    <div key={hub.id} className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+                      <p className="font-medium text-slate-100">{hub.name || 'Unnamed live record'}</p>
+                      <p className="mt-1 text-sm text-slate-500">{hub.country || 'Country not supplied'}</p>
+                    </div>
+                  ))}
+                  {hubs.length === 0 && <p className="rounded-xl border border-dashed border-slate-700 p-4 text-sm text-slate-400">No global-hub records were returned by the live query.</p>}
+                </div>
+              </article>
+
+              <article className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+                <Database className="h-6 w-6 text-cyan-300" aria-hidden="true" />
+                <p className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Traceability</p>
+                <h3 className="mt-2 text-xl font-semibold text-white">Data before presentation</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-400">The interface is intentionally restrained: it avoids simulated activity, prefilled entities, and invented metrics. Any inaccessible source is reported as an actionable integrity state.</p>
+              </article>
             </div>
-          </div>
+          </section>
         )}
 
-        {activeTab === 'telstp-research' && (
-          <ResearchDashboard />
-        )}
-      </main>
+        {activeTab === 'hubs' && (
+          <section className="space-y-6" aria-labelledby="hubs-heading">
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Live directory</p>
+                <h2 id="hubs-heading" className="mt-2 text-3xl font-semibold tracking-tight text-white">Global life-science hubs</h2>
+                <p className="mt-2 text-slate-400">Records are loaded directly from the `global_hubs` table of the configured TELsTP project.</p>
+              </div>
+              <label className="block">
+                <span className="sr-only">Search live global hubs</span>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search by hub, country, or website"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400 md:w-80"
+                />
+              </label>
+            </div>
 
-      {/* Footer */}
-      <footer className="bg-gray-800 border-t border-gray-700 px-6 py-4 mt-12">
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-400">
-            Deployed by <span className="text-blue-400 font-medium">MMAC - Manus Mission Accomplished</span>
-          </div>
-          <div className="text-sm text-gray-400">
-            TELsTP OmniCognitor MVP • Zero Cost • 25/11/2025, 00:30:50
-          </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/50">
+              <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4 text-sm text-slate-400">
+                <span>{filteredHubs.length} live record{filteredHubs.length === 1 ? '' : 's'} shown</span>
+                <span>Source: Supabase `global_hubs`</span>
+              </div>
+              <div className="divide-y divide-slate-800">
+                {filteredHubs.map((hub) => (
+                  <article key={hub.id} className="flex flex-col gap-3 px-5 py-4 transition hover:bg-slate-800/30 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h3 className="font-semibold text-white">{hub.name || 'Unnamed live record'}</h3>
+                      <p className="mt-1 text-sm text-slate-400">{hub.country || 'Country not supplied'}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                      {hub.contact_email && <a className="text-slate-400 transition hover:text-cyan-200" href={`mailto:${hub.contact_email}`}>{hub.contact_email}</a>}
+                      {hub.website && (
+                        <a className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-1.5 font-medium text-cyan-300 transition hover:border-cyan-400/40 hover:text-cyan-200" href={hub.website} target="_blank" rel="noreferrer">
+                          Visit source <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                        </a>
+                      )}
+                    </div>
+                  </article>
+                ))}
+                {filteredHubs.length === 0 && <p className="px-5 py-12 text-center text-sm text-slate-400">No live global-hub records match this search.</p>}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'integrity' && (
+          <section className="space-y-6" aria-labelledby="integrity-heading">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Review controls</p>
+              <h2 id="integrity-heading" className="mt-2 text-3xl font-semibold tracking-tight text-white">Live data integrity</h2>
+              <p className="mt-2 max-w-3xl text-slate-400">Operational transparency is part of the TELsTP platform contract. This view distinguishes confirmed values from data sources requiring remediation.</p>
+            </div>
+
+            <IntegrityNotice />
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <article className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400" aria-hidden="true" />
+                  <h3 className="font-semibold text-white">Verified active path</h3>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-400">The global hub directory responds to the application’s configured Supabase client and is rendered directly from returned records. Messages and conversations return their actual current count, including zero when no records exist.</p>
+              </article>
+              <article className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-400" aria-hidden="true" />
+                  <h3 className="font-semibold text-white">Controlled remediation path</h3>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-400">Workspace availability depends on its database access policy. If the query fails, this release reports the returned issue instead of substituting a count or prefilled workspace catalogue.</p>
+              </article>
+            </div>
+          </section>
+        )}
+      </div>
+
+      <footer className="relative border-t border-slate-800 bg-slate-950/80">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-5 text-sm text-slate-500 md:flex-row md:items-center md:justify-between lg:px-8">
+          <p>{PLATFORM_CONFIG.organization} · {PLATFORM_CONFIG.platformName}</p>
+          <p>Verified live-state interface · No simulated operational records</p>
         </div>
       </footer>
     </div>
