@@ -1,50 +1,77 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://vrfyjirddfdnwuffzqhb.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZyZnlqaXJkZGZkbnd1ZmZ6cWhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5MDYwNjMsImV4cCI6MjA3NTQ4MjA2M30.glgJwI2yIqUFG8ZtWJk2esxGdXw6nFp5eQ8aANbRAvE'
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL?.trim() ?? '';
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY?.trim() ?? '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-// Database types
-export interface User {
-  id: string
-  email: string
-  role: string
-  created_at: string
-  updated_at: string
+/**
+ * This client is intentionally limited to the browser-safe Supabase anon key.
+ * Server/service-role credentials must never be shipped in the frontend bundle.
+ */
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
+  : null;
+
+export const supabaseConfigurationMessage =
+  'Supabase is not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY in the Vercel project, then redeploy.';
+
+export interface GlobalHub {
+  id: number | string;
+  name: string | null;
+  country: string | null;
+  hub_name: string | null;
+  location: string | null;
+  contact_email?: string | null;
+  website?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  key_contact_person?: string | null;
+  specialization_areas: string | null;
+  partnership_priority: string | null;
+  strategic_value: string | null;
+  created_at?: string | null;
 }
 
-export interface Platform {
-  id: string
-  name: string
-  type: string
-  status: 'enabled' | 'disabled'
-  description: string
-  created_at: string
+export interface AiAgent {
+  id: string;
+  name: string | null;
+  configuration: Record<string, unknown> | null;
+  created_at: string | null;
 }
 
-export interface Workspace {
-  id: string
-  name: string
-  description: string
-  visibility: 'public' | 'private'
-  created_at: string
-  updated_at: string
+export interface AgentProjectLink {
+  id: string;
+  agent_id: string | null;
+  project_id: string | null;
+  role: string | null;
+  permissions: string | null;
+  created_at: string | null;
 }
 
-export interface Message {
-  id: string
-  workspace_id: string
-  user_id: string
-  content: string
-  created_at: string
+export interface LiveStats {
+  hubs: number | null;
+  agents: number | null;
+  projectLinks: number | null;
+  aiMessages: number | null;
+  appointments: number | null;
+  m23mAgents: number | null;
+  m23mProjects: number | null;
+  m23mTasks: number | null;
 }
 
-export interface Conversation {
-  id: string
-  workspace_id: string
-  title: string
-  participants: string[]
-  created_at: string
-  updated_at: string
-}
+export const emptyLiveStats: LiveStats = {
+  hubs: null,
+  agents: null,
+  projectLinks: null,
+  aiMessages: null,
+  appointments: null,
+  m23mAgents: null,
+  m23mProjects: null,
+  m23mTasks: null,
+};
